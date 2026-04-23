@@ -1,0 +1,20 @@
+{
+  "name": "nefta.max-adapter",
+  "version": "4.5.2",
+  "displayName": "NeftaSDK MAX Adapter",
+  "description": "Ad optimisation SDK for AppLovin MAX",
+  "unity": "2022.3",
+  "unityRelease": "62f2",
+  "author": {
+    "name": "Tomaz Treven",
+    "email": "treven@nefta.io",
+    "url": "https://nefta.io"
+  },
+  "keywords": [ "ads" ],
+  "category": "Tools",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nefta-io/nefta.max-adapter.git"
+  },
+  "license": "MIT"
+}
