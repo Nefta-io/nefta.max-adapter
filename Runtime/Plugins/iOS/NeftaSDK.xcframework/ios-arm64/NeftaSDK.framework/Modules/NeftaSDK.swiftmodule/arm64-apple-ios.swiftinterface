@@ -1,6 +1,6 @@
 // swift-interface-format-version: 1.0
 // swift-compiler-version: Apple Swift version 6.1.2 effective-5.10 (swiftlang-6.1.2.1.2 clang-1700.0.13.5)
-// swift-module-flags: -target arm64-apple-ios15.6 -enable-objc-interop -enable-library-evolution -swift-version 5 -enforce-exclusivity=checked -O -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -module-name NeftaSDK
+// swift-module-flags: -target arm64-apple-ios15.0 -enable-objc-interop -enable-library-evolution -swift-version 5 -enforce-exclusivity=checked -O -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -module-name NeftaSDK
 // swift-module-flags-ignorable: -no-verify-emitted-module-interface -interface-compiler-version 6.1.2
 import AdSupport
 import CoreTelephony
@@ -8,7 +8,7 @@ import Foundation
 @_exported import NeftaSDK
 import Swift
 import SystemConfiguration
-import WebKit
+import UIKit
 import _Concurrency
 import _StringProcessing
 import _SwiftConcurrencyShims
@@ -52,8 +52,9 @@ import os
     public var _model: Swift.String?
     @objc deinit
   }
-  @_hasMissingDesignatedInitializers public class State {
+  public class State {
     public var _nuid: Swift.String
+    public init()
     @objc deinit
   }
   public typealias OnReadyBlock = (NeftaSDK.InitConfiguration) -> Swift.Void
@@ -90,6 +91,7 @@ import os
   @objc public static func OnExternalMediationImpression(_ isClick: Swift.Bool, provider: Swift.String, data: Foundation.NSMutableDictionary?, id: Swift.String?, id2: Swift.String?)
   @objc public static func OnExternalMediationImpressionAsString(_ isClick: Swift.Bool, provider: Swift.String, data: Swift.String, id: Swift.String?, id2: Swift.String?)
   @objc(GetRetryDelayInSeconds:) public static func GetRetryDelayInSeconds(insight: NeftaSDK.AdInsight?) -> Swift.Float
+  public func GetDebugState() -> [Swift.String : Any?]
   @objc public static func SetOverride(url: Swift.String?)
   @objc deinit
 }
@@ -242,10 +244,12 @@ import os
   public init(config: [Swift.String : Any])
   @objc deinit
 }
-@_hasMissingDesignatedInitializers @objc public class InitConfiguration : ObjectiveC.NSObject {
+@objc public class InitConfiguration : ObjectiveC.NSObject {
   @objc public var _skipOptimization: Swift.Bool
   @objc public var _nuid: Swift.String
-  @objc public var _noResponseRetryInMs: Swift.Int
+  @objc public var _noDynamicResponseRetryInMs: Swift.Int
+  @objc public var _noDefaultResponseRetryInMs: Swift.Int
+  public init(skipOptimization: Swift.Bool, state: NeftaSDK.NeftaPlugin.State)
   public func GetAdapterResponse() -> Swift.String
   @objc deinit
 }

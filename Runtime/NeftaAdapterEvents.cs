@@ -32,7 +32,8 @@ namespace NeftaCustomAdapter
             public bool skipOptimization;
             public string nuid;
             public float[] delays;
-            public int noResponseRetryInMs;
+            public int noDynamicResponseRetryInMs;
+            public int noDefaultResponseRetryInMs;
         }
         
         public struct ExtParams
@@ -51,13 +52,11 @@ namespace NeftaCustomAdapter
         {
             public int _id;
             public IEnumerable<string> _insights;
-            public SynchronizationContext _returnContext;
             public OnInsightsCallback _callback;
 
             public InsightRequest(int id, OnInsightsCallback callback)
             {
                 _id = id;
-                _returnContext = SynchronizationContext.Current;
                 _callback = callback;
             }
         }
@@ -142,11 +141,12 @@ namespace NeftaCustomAdapter
         private static List<InsightRequest> _insightRequests;
         private static int _insightId;
         private static List<float> _delays;
-        internal static int NoResponseRetryInMs;
+        public static int NoDynamicResponseRetryInMs;
+        public static int NoDefaultResponseRetryInMs;
 
         private static SynchronizationContext _mainContext;
         private static Action<InitConfiguration> _onReady;
-        private static List<Action> _newSessionCallbacks;
+        private static List<Action> _newSessionCallbacks = new List<Action>();
 
         public static InitConfiguration InitConfiguration;
         public static bool IsLoggingEnabled;
@@ -177,7 +177,6 @@ namespace NeftaCustomAdapter
         {
             _mainContext = SynchronizationContext.Current;
             _onReady = onReady;
-            _newSessionCallbacks = new List<Action>();
 #if UNITY_EDITOR
             _plugin = NeftaPlugin.Init(appId, clientId, "unity-applovin-max", MaxSdk.Version);
             _plugin.Listener = new NeftaListener();
@@ -559,7 +558,8 @@ namespace NeftaCustomAdapter
                             _delays.Add(delay);
                         }
                     }
-                    NoResponseRetryInMs = initDto.noResponseRetryInMs;
+                    NoDynamicResponseRetryInMs = initDto.noDynamicResponseRetryInMs;
+                    NoDefaultResponseRetryInMs = initDto.noDefaultResponseRetryInMs;
                 }
                 if (_delays.Count == 0)
                 {
@@ -584,7 +584,7 @@ namespace NeftaCustomAdapter
                     if (insightRequest._id == id)
                     {
                         var insights = new Insights(adapterResponseType, adapterResponse);
-                        insightRequest._returnContext.Post(_ => insightRequest._callback(insights), null);
+                        _mainContext.Post(_ => insightRequest._callback(insights), null);
                         _insightRequests.RemoveAt(i);
                         break;
                     }

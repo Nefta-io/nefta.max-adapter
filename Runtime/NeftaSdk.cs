@@ -2,16 +2,12 @@ namespace NeftaCustomAdapter
 {
     public class NeftaSdk
     {
-        private const string IntegrationVersion = "1.1.0";
+        private const string IntegrationVersion = "1.2.0";
         
         private static bool _isInitialized;
         
         public static InterstitialLogic Interstitial = new InterstitialLogic();
         public static RewardedLogic Rewarded = new RewardedLogic();
-
-        internal static bool Passthrough => IsNeftaDisabled || (NeftaAdapterEvents.InitConfiguration?._skipOptimization ?? false);
-        
-        public static bool IsNeftaDisabled;
 
         public static void Initialize()
         {
@@ -25,21 +21,21 @@ namespace NeftaCustomAdapter
 
         private static void OnNewSession()
         {
-            if (!Passthrough)
+            if (Interstitial.IsDualTrackInitialized)
             {
-                Interstitial?.OnNewSession();
-                Rewarded?.OnNewSession();   
+                Interstitial.OnNewSession();
+            }
+            if (Rewarded.IsDualTrackInitialized)
+            {
+                Rewarded.OnNewSession();
             }
         }
         
         public static void LoadInterstitial(string adUnitId=null)
         {
-            if (Passthrough || !Interstitial.IsDualTrackInitialized)
+            if (!Interstitial.IsDualTrackInitialized)
             {
-                if (!IsNeftaDisabled)
-                {
-                    NeftaAdapterEvents.OnExternalMediationRequest(NeftaAdapterEvents.AdType.Interstitial, adUnitId);
-                }
+                NeftaAdapterEvents.OnExternalMediationRequest(NeftaAdapterEvents.AdType.Interstitial, adUnitId);
                 MaxSdk.LoadInterstitial(adUnitId);
             }
             else
@@ -50,7 +46,7 @@ namespace NeftaCustomAdapter
 
         public static bool IsInterstitialReady(string adUnitId=null)
         {
-            if (Passthrough || !Interstitial.IsDualTrackInitialized)
+            if (!Interstitial.IsDualTrackInitialized)
             {
                 return MaxSdk.IsInterstitialReady(adUnitId);
             }
@@ -59,7 +55,7 @@ namespace NeftaCustomAdapter
 
         public static void ShowInterstitial(string adUnitId=null)
         {
-            if (Passthrough || !Interstitial.IsDualTrackInitialized)
+            if (!Interstitial.IsDualTrackInitialized)
             {
                 MaxSdk.ShowInterstitial(adUnitId);
             }
@@ -71,12 +67,9 @@ namespace NeftaCustomAdapter
 
         public static void LoadRewardedAd(string adUnitId=null)
         {
-            if (Passthrough || !Rewarded.IsDualTrackInitialized)
+            if (!Rewarded.IsDualTrackInitialized)
             {
-                if (!IsNeftaDisabled)
-                {
-                    NeftaAdapterEvents.OnExternalMediationRequest(NeftaAdapterEvents.AdType.Rewarded, adUnitId);
-                }
+                NeftaAdapterEvents.OnExternalMediationRequest(NeftaAdapterEvents.AdType.Rewarded, adUnitId);
                 MaxSdk.LoadRewardedAd(adUnitId);
             }
             else
@@ -87,7 +80,7 @@ namespace NeftaCustomAdapter
 
         public static bool IsRewardedAdReady(string adUnitId=null)
         {
-            if (Passthrough || !Rewarded.IsDualTrackInitialized)
+            if (!Rewarded.IsDualTrackInitialized)
             {
                 return MaxSdk.IsRewardedAdReady(adUnitId);
             }
@@ -96,7 +89,7 @@ namespace NeftaCustomAdapter
 
         public static void ShowRewardedAd(string adUnitId=null)
         {
-            if (Passthrough || !Rewarded.IsDualTrackInitialized)
+            if (!Rewarded.IsDualTrackInitialized)
             {
                 MaxSdk.ShowRewardedAd(adUnitId);
             }

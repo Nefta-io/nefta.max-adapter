@@ -344,7 +344,8 @@ SWIFT_CLASS("_TtC8NeftaSDK17InitConfiguration")
 @interface InitConfiguration : NSObject
 @property (nonatomic) BOOL _skipOptimization;
 @property (nonatomic, copy) NSString * _Nonnull _nuid;
-@property (nonatomic) NSInteger _noResponseRetryInMs;
+@property (nonatomic) NSInteger _noDynamicResponseRetryInMs;
+@property (nonatomic) NSInteger _noDefaultResponseRetryInMs;
 - (nonnull instancetype)init SWIFT_UNAVAILABLE;
 + (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
 @end
@@ -986,7 +987,8 @@ SWIFT_CLASS("_TtC8NeftaSDK17InitConfiguration")
 @interface InitConfiguration : NSObject
 @property (nonatomic) BOOL _skipOptimization;
 @property (nonatomic, copy) NSString * _Nonnull _nuid;
-@property (nonatomic) NSInteger _noResponseRetryInMs;
+@property (nonatomic) NSInteger _noDynamicResponseRetryInMs;
+@property (nonatomic) NSInteger _noDefaultResponseRetryInMs;
 - (nonnull instancetype)init SWIFT_UNAVAILABLE;
 + (nonnull instancetype)new SWIFT_UNAVAILABLE_MSG("-init is unavailable");
 @end

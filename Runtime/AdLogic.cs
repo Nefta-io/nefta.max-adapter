@@ -1,6 +1,6 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
-using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 
@@ -24,7 +24,6 @@ namespace NeftaCustomAdapter
             public AdInsight Insight;
             public MaxSdkBase.AdInfo AdInfo;
             public bool IsAdLoadCallbackAvailable;
-            public CancellationTokenSource ResponseCancellationToken;
 
             public Track(string adUnitId)
             {
@@ -43,7 +42,7 @@ namespace NeftaCustomAdapter
         protected abstract string LogTag { get; }
         protected abstract NeftaAdapterEvents.AdType AdType { get; }
         protected abstract int InsightType { get; }
-        protected abstract void LoadInternal(string adUnitId, string bidFloor);
+        protected abstract void LoadInternal(string adUnitId, bool disableAutoRetries, string bidFloor);
         protected abstract bool TryShow(Track adRequest);
         
         protected Track _trackA;
@@ -71,6 +70,9 @@ namespace NeftaCustomAdapter
             IsDualTrackInitialized = true;
         }
 
+        // this fires on app resume if the app was in background fore more than 30m
+        // in case ads are preloaded from previous session discard them
+        // and load new ones which will most likely have higher revenue
         public virtual void OnNewSession()
         {
             _trackA.Reset();
@@ -144,14 +146,18 @@ namespace NeftaCustomAdapter
                 {
                     track.Insight = insights.Insight;
                     NeftaAdapterEvents.OnExternalMediationRequest(AdType, track.AdUnitId, track.Insight);
-                    var bidFloor = track.Insight._floorPrice.ToString(CultureInfo.InvariantCulture);
+                    var bidFloor = "";
+                    if (track.Insight._floorPrice >= 0)
+                    {
+                        bidFloor = track.Insight._floorPrice.ToString(CultureInfo.InvariantCulture);
+                    }
                     Log($"Loading {track.AdUnitId} as Optimized with floor: {bidFloor}");
                     
-                    LoadInternal(track.AdUnitId, bidFloor);
+                    LoadInternal(track.AdUnitId, true, bidFloor);
 
-                    if (NeftaAdapterEvents.NoResponseRetryInMs > 0)
+                    if (NeftaAdapterEvents.NoDynamicResponseRetryInMs > 0)
                     {
-                        RetryOnNoResponse(track);
+                        DelayExecutor.ExecuteAfterDelay(track, RetryOnNoResponse, NeftaAdapterEvents.NoDynamicResponseRetryInMs * 0.001f);
                     }
                 }
                 else
@@ -160,27 +166,6 @@ namespace NeftaCustomAdapter
                 }
             });
         }
-
-        private async void RetryOnNoResponse(Track track)
-        {
-            try
-            {
-                track.ResponseCancellationToken = new CancellationTokenSource();
-                await Task.Delay(NeftaAdapterEvents.NoResponseRetryInMs, track.ResponseCancellationToken.Token);
-#if UNITY_EDITOR
-                if (!Application.isPlaying)
-                {
-                    return;
-                }
-#endif
-                Log($"Retrying load on {track.AdUnitId}");
-                track.State = State.Idle;
-                LoadTracks();
-            }
-            catch (TaskCanceledException)
-            {
-            }
-        }
         
         protected void LoadDefault(Track track)
         {
@@ -188,7 +173,19 @@ namespace NeftaCustomAdapter
             NeftaAdapterEvents.OnExternalMediationRequest(AdType, track.AdUnitId);
             Log($"Loading {track.AdUnitId} as Default");
             
-            LoadInternal(track.AdUnitId, null);
+            LoadInternal(track.AdUnitId, false, "");
+            
+            if (NeftaAdapterEvents.NoDefaultResponseRetryInMs > 0)
+            {
+                DelayExecutor.ExecuteAfterDelay(track, RetryOnNoResponse, NeftaAdapterEvents.NoDefaultResponseRetryInMs * 0.001f);
+            }
+        }
+        
+        private void RetryOnNoResponse(Track track)
+        {
+            Log($"Retrying load on {track.AdUnitId}");
+            track.State = State.Idle;
+            LoadTracks();
         }
         
         private void RestartAfterFailedLoad(Track track)
@@ -234,17 +231,17 @@ namespace NeftaCustomAdapter
             }
             if (!isShown && _trackB.State == State.Ready)
             {
-                TryShow(_trackB);
+                if (!TryShow(_trackB))
+                {
+                    LoadTracks();
+                }
             }
         }
         
         protected void OnAdFailedCallback(string adUnitId, MaxSdkBase.ErrorInfo errorInfo)
         {
-            if (!NeftaSdk.IsNeftaDisabled)
-            {
-                NeftaAdapterEvents.OnExternalMediationRequestFailed(adUnitId, errorInfo);
-            }
-            if (NeftaSdk.Passthrough)
+            NeftaAdapterEvents.OnExternalMediationRequestFailed(adUnitId, errorInfo);
+            if (!IsDualTrackInitialized)
             {
                 if (OnAdLoadFailedEvent != null)
                 {
@@ -256,20 +253,14 @@ namespace NeftaCustomAdapter
             Log($"Load Failed {adUnitId}: {errorInfo}");
             
             var track = adUnitId == _trackA.AdUnitId ? _trackA : _trackB;
-            if (track.ResponseCancellationToken != null)
-            {
-                track.ResponseCancellationToken.Cancel();
-            }
+            DelayExecutor.CancelDelayedAction(track);
             RestartAfterFailedLoad(track);
         }
         
         protected void OnAdLoadedCallback(string adUnitId, MaxSdkBase.AdInfo adInfo)
         {
-            if (!NeftaSdk.IsNeftaDisabled)
-            {
-                NeftaAdapterEvents.OnExternalMediationRequestLoaded(adInfo);
-            }
-            if (NeftaSdk.Passthrough)
+            NeftaAdapterEvents.OnExternalMediationRequestLoaded(adInfo);
+            if (!IsDualTrackInitialized)
             {
                 if (OnAdLoadedEvent != null)
                 {
@@ -281,10 +272,7 @@ namespace NeftaCustomAdapter
             Log($"Loaded {adUnitId} at: {adInfo.Revenue}");
             
             var track = adUnitId == _trackA.AdUnitId ? _trackA : _trackB;
-            if (track.ResponseCancellationToken != null)
-            {
-                track.ResponseCancellationToken.Cancel();
-            }
+            DelayExecutor.CancelDelayedAction(track);
             track.Insight = null;
             track.AdInfo = adInfo;
             track.State = State.Ready;
@@ -309,7 +297,7 @@ namespace NeftaCustomAdapter
         
         protected void OnAdDisplayFailedCallback(string adUnitId, MaxSdkBase.ErrorInfo errorInfo, MaxSdkBase.AdInfo adInfo)
         {
-            if (NeftaSdk.Passthrough)
+            if (!IsDualTrackInitialized)
             {
                 if (OnAdDisplayFailedEvent != null)
                 {
@@ -341,11 +329,7 @@ namespace NeftaCustomAdapter
         
         protected void OnAdRevenuePaidCallback(string adUnitId, MaxSdkBase.AdInfo adInfo)
         {
-            if (!NeftaSdk.IsNeftaDisabled)
-            {
-                NeftaAdapterEvents.OnExternalMediationImpression(adUnitId, adInfo);
-            }
-
+            NeftaAdapterEvents.OnExternalMediationImpression(adUnitId, adInfo);
             if (OnAdRevenuePaidEvent != null)
             {
                 OnAdRevenuePaidEvent(adUnitId, adInfo);
@@ -354,11 +338,7 @@ namespace NeftaCustomAdapter
         
         protected void OnAdClickedCallback(string adUnitId, MaxSdkBase.AdInfo adInfo)
         {
-            if (!NeftaSdk.IsNeftaDisabled)
-            {
-                NeftaAdapterEvents.OnExternalMediationClick(adUnitId, adInfo);
-            }
-
+            NeftaAdapterEvents.OnExternalMediationClick(adUnitId, adInfo);
             if (OnAdClickedEvent != null)
             {
                 OnAdClickedEvent(adUnitId, adInfo);
@@ -367,7 +347,7 @@ namespace NeftaCustomAdapter
         
         protected void OnAdHiddenCallback(string adUnitId, MaxSdkBase.AdInfo adInfo)
         {
-            if (NeftaSdk.Passthrough)
+            if (!IsDualTrackInitialized)
             {
                 if (OnAdHiddenEvent != null)
                 {
@@ -394,6 +374,69 @@ namespace NeftaCustomAdapter
             if (NeftaAdapterEvents.IsLoggingEnabled)
             {
                 Debug.Log($"{LogTag}: {log}");
+            }
+        }
+        
+        protected class DelayExecutor : MonoBehaviour
+        {
+            private class DelayedAction
+            {
+                public Track _track;
+                public Action<Track> _action;
+                public float _delay;
+
+                public DelayedAction(Track track, Action<Track> action, float delay)
+                {
+                    _track = track;
+                    _action = action;
+                    _delay = delay;
+                }
+            }
+
+            private static DelayExecutor _instance;
+            private readonly List<DelayedAction> _actions = new List<DelayedAction>();
+
+            private void Update()
+            {
+                for (var i = _actions.Count - 1; i >= 0; i--)
+                {
+                    var delayedAction = _actions[i];
+                    delayedAction._delay -= Mathf.Min(Time.unscaledDeltaTime, 0.1f);
+                    if (delayedAction._delay <= 0f)
+                    {
+                        _actions.RemoveAt(i);
+                        delayedAction._action(delayedAction._track);
+                    }
+                }
+            }
+
+            public static void ExecuteAfterDelay(Track track, Action<Track> action, float delay)
+            {
+                if (_instance == null)
+                {
+                    var executor = new GameObject("NeftaSdkExecutor")
+                    {
+                        hideFlags = HideFlags.HideAndDontSave
+                    };
+                    DontDestroyOnLoad(executor);
+                    _instance = executor.AddComponent<DelayExecutor>();
+                }
+                _instance._actions.Add(new DelayedAction(track, action, delay));
+            }
+
+            public static void CancelDelayedAction(Track track)
+            {
+                if (_instance != null)
+                {
+                    for (var i = _instance._actions.Count - 1; i >= 0; i--)
+                    {
+                        if (_instance._actions[i]._track == track)
+                        {
+                            _instance._actions.RemoveAt(i);
+                            return;
+                        }
+                    }
+                }
             }
         }
     }
