@@ -1,6 +1,6 @@
 {
   "name": "nefta.max-adapter",
-  "version": "4.5.4",
+  "version": "4.5.5",
   "displayName": "NeftaSDK MAX Adapter",
   "description": "Ad optimisation SDK for AppLovin MAX",
   "unity": "2022.3",
